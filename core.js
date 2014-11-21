@@ -160,20 +160,24 @@ Velocity = {};
        * Registers a testing framework plugin.
        *
        * @method registerTestingFramework
-       * @param {String} name                       The name of the testing framework.
-       * @param {Object} [options]                  Options for the testing framework.
-       * @param {String} options.disableAutoReset   Velocity's reset cycle will skip reports and logs for this framework
-       *                                            It will be the responsibility of the framework to clean up its ****!
-       * @param {String} options.regex              The regular expression for test files that should be assigned
-       *                                            to the testing framework.
-       *                                            The path relative to the tests
-       *                                            folder is matched against it.
-       *                                            The default is "name/.+\.js$"
-       *                                            (name is the testing framework name).
-       * @param options.sampleTestGenerator {Function} sampleTestGenerator
-       *    returns an array of fileObjects with the following fields:
-       * @param options.sampleTestGenerator.path {String} relative path to place test file (from PROJECT/tests)
-       * @param options.sampleTestGenerator.contents {String} contents of the test file the path that's returned
+       * @param {String} name The name of the testing framework.
+       * @param {Object} [options] Options for the testing framework.
+       *   @param {String} [options.disableAutoReset] Velocity's reset cycle will
+       *                 skip reports and logs for this framework.
+       *                 It will be the responsibility of the framework to 
+       *                 clean up after itself!
+       *   @param {String} [options.regex] The regular expression to identify
+       *                 which test files should be assigned to the testing
+       *                 framework. Used to match files by their path relative
+       *                 to the tests folder. Default: `name/.+\.js$` (where
+       *                 'name' is the testing framework name).
+       *   @param {Function} [options.sampleTestGenerator] Sample test generator.
+       *                 Returns an array of fileObjects with the following
+       *                 fields: 
+       *
+       *                 path {String} - relative path to place test file
+       *                                   (from PROJECT/tests)
+       *                 contents {String} - contents of the test file to place
        */
       registerTestingFramework: function (name, options) {
         _config[name] = _parseTestingFrameworkOptions(name, options);
@@ -521,6 +525,20 @@ Velocity = {};
 
   });  // end Meteor methods
 
+  if (Meteor.isServer) {
+    Meteor.methods({
+      /**
+       * Registers a testing framework plugin.
+       * See {{#crossLink "Velocity/registerTestingFramework:method"}}{{/crossLink}} 
+       * for expected parameters.
+       *
+       * @method velocity/registerTestingFramework
+       */
+      'velocity/registerTestingFramework': function (name, options) {
+        Velocity.registerTestingFramework(name, options);
+      }
+    });  // end Meteor methods
+  }
 
 
 
