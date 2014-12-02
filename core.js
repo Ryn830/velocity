@@ -174,24 +174,24 @@ Velocity = Velocity || {};
   Meteor.methods({
 
     /**
-    * Registers a testing framework plugin via a Meteor method.
-    *
-    * @method registerTestingFramework
-    * @param {String} name                       The name of the testing framework.
-    * @param {Object} [options]                  Options for the testing framework.
-    * @param {String} options.disableAutoReset   Velocity's reset cycle will skip reports and logs for this framework
-    *                                            It will be the responsibility of the framework to clean up its ****!
-    * @param {String} options.regex              The regular expression for test files that should be assigned
-    *                                            to the testing framework.
-    *                                            The path relative to the tests
-    *                                            folder is matched against it.
-    *                                            The default is "name/.+\.js$"
-    *                                            (name is the testing framework name).
-    * @param options.sampleTestGenerator {Function} sampleTestGenerator
-    *    returns an array of fileObjects with the following fields:
-    * @param options.sampleTestGenerator.path {String} relative path to place test file (from PROJECT/tests)
-    * @param options.sampleTestGenerator.contents {String} contents of the test file the path that's returned
-    */
+     * Registers a testing framework plugin via a Meteor method.
+     *
+     * @method registerTestingFramework
+     * @param {String} name                       The name of the testing framework.
+     * @param {Object} [options]                  Options for the testing framework.
+     * @param {String} options.disableAutoReset   Velocity's reset cycle will skip reports and logs for this framework
+     *                                            It will be the responsibility of the framework to clean up its ****!
+     * @param {String} options.regex              The regular expression for test files that should be assigned
+     *                                            to the testing framework.
+     *                                            The path relative to the tests
+     *                                            folder is matched against it.
+     *                                            The default is "name/.+\.js$"
+     *                                            (name is the testing framework name).
+     * @param options.sampleTestGenerator {Function} sampleTestGenerator
+     *    returns an array of fileObjects with the following fields:
+     * @param options.sampleTestGenerator.path {String} relative path to place test file (from PROJECT/tests)
+     * @param options.sampleTestGenerator.contents {String} contents of the test file the path that's returned
+     */
     'velocity/register/framework': function (name, options) {
       options = options || {};
       check(name, Match.Optional(String));
@@ -349,9 +349,10 @@ Velocity = Velocity || {};
       }));
 
       data.timestamp = data.timestamp || new Date();
-      data.id = data.id || Random.id();
+      var id = data.id || Random.id();
+      delete data.id;
 
-      VelocityTestReports.upsert(data.id, {$set: data});
+      VelocityTestReports.upsert(id, {$set: data});
 
       _updateAggregateReports();
     },  // end postResult
@@ -372,6 +373,27 @@ Velocity = Velocity || {};
 
       VelocityAggregateReports.upsert({'name': data.framework},
         {$set: {'result': 'completed'}});
+      _updateAggregateReports();
+    },  // end completed
+
+    /**
+     * Frameworks may choose to call this method to inform Velocity they have started
+     * their current test runs. Velocity uses this flag to start the timer. This is useful
+     *
+     *
+     * @method velocity/reports/completed
+     * @param {Object} options
+     * @param {String} options.framework Name of a test framework.  Ex. 'jasmine'
+     * @param {Date} [data.timestamp] The time the framework started its current run.
+     */
+    'velocity/reports/start': function (options) {
+      check(options, {
+        framework: String,
+        timestamp: Match.Optional(Match.OneOf(Date, String))
+      });
+      options.timestamp = options.timestamp ? options.timestamp : new Date();
+      VelocityAggregateReports.upsert({'name': options.framework},
+        {$set: {'started': options.timestamp}});
       _updateAggregateReports();
     },  // end completed
 
@@ -629,8 +651,26 @@ Velocity = Velocity || {};
 
     var aggregateComplete = VelocityAggregateReports.findOne({'name': 'aggregateComplete'});
     if (aggregateComplete) {
+
+      // get total time
+      // find earliest started stamp
+      var beginning = VelocityAggregateReports.findOne({started: {$exists: true}}, {sort: {started: 1}});
+      var duration = new Date().getTime() - new Date(beginning.started).getTime();
+
+      if (VelocityTestReports.find().fetch().length !== 0) {
+        VelocityAggregateReports.update({'name': 'aggregateComplete'}, {
+          $set: {
+            'duration': duration
+          }
+        });
+      }
+
       if ((aggregateComplete.result !== 'completed') && (_getTestFrameworkNames().length === completedFrameworksCount)) {
-        VelocityAggregateReports.update({'name': 'aggregateComplete'}, {$set: {'result': 'completed'}});
+        VelocityAggregateReports.update({'name': 'aggregateComplete'}, {
+          $set: {
+            'result': 'completed'
+          }
+        });
         _.each(Velocity.postProcessors, function (processor) {
           processor();
         });
